@@ -82,14 +82,15 @@ class MockData {
     ];
   }
 
+  static final List<AppDocument> _looseDocs = _generateMockDocs(3, 'loose');
+
+  static void addDocument(AppDocument document) {
+    _looseDocs.add(document);
+  }
+
   static List<HomeItem> getHomeItems() {
     final folders = getFolders();
 
-    final looseDocs = _generateMockDocs(3, 'loose');
-
-    return [
-      ...folders,
-      ...looseDocs,
-    ];
+    return [...folders, ..._looseDocs];
   }
 }

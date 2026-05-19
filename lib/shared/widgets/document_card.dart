@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -33,7 +34,9 @@ class DocumentCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppRadius.s),
                     image: DecorationImage(
-                      image: NetworkImage(document.imageUrl),
+                      image: document.imageUrl.startsWith('http')
+                          ? NetworkImage(document.imageUrl)
+                          : FileImage(File(document.imageUrl)) as ImageProvider,
                       fit: BoxFit.cover,
                     ),
                   ),

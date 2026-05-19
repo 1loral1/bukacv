@@ -21,8 +21,6 @@ class MockStorageRepository implements StorageRepository {
 
   @override
   Future<void> init() async {
-    // Mock initializing storage
-    await Future.delayed(const Duration(milliseconds: 500));
   }
 
   @override

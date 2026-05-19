@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../shared/models/mock_data.dart';
@@ -30,10 +31,12 @@ class DocumentScreen extends StatelessWidget {
                   child: InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 4.0,
-                    child: Image.network(
-                      document.imageUrl,
-                      fit: BoxFit.contain,
-                    ),
+                    child: document.imageUrl.startsWith('http')
+                        ? Image.network(document.imageUrl, fit: BoxFit.contain)
+                        : Image.file(
+                            File(document.imageUrl),
+                            fit: BoxFit.contain,
+                          ),
                   ),
                 ),
               ),

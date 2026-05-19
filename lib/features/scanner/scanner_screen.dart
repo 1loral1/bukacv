@@ -1,5 +1,8 @@
+import 'dart:io';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
+import '../../shared/models/mock_data.dart';
 import '../home/home_screen.dart';
 
 class ScannerScreen extends StatefulWidget {
@@ -10,7 +13,74 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> {
+  CameraController? _controller;
+  Future<void>? _initializeControllerFuture;
   bool _isFlashOn = false;
+  XFile? _recentImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+
+      final firstCamera = cameras.first;
+      _controller = CameraController(
+        firstCamera,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      _initializeControllerFuture = _controller!.initialize();
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Error initializing camera: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _takePicture() async {
+    if (_controller == null || _initializeControllerFuture == null) return;
+
+    try {
+      await _initializeControllerFuture;
+
+      final FlashMode flashMode = _isFlashOn ? FlashMode.torch : FlashMode.off;
+      await _controller!.setFlashMode(flashMode);
+
+      final image = await _controller!.takePicture();
+
+      // Save it to MockData
+      final newDoc = AppDocument(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: 'New Scan',
+        date: DateTime.now(),
+        imageUrl: image.path,
+      );
+      MockData.addDocument(newDoc);
+
+      if (mounted) {
+        setState(() {
+          _recentImage = image;
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Document saved')));
+      }
+    } catch (e) {
+      debugPrint('Error taking picture: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,19 +89,36 @@ class _ScannerScreenState extends State<ScannerScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Camera Preview Placeholder
+          // Camera Preview
           Positioned.fill(
+            top: 120,
+            bottom: 150,
             child: Container(
-              color: Colors.grey[900],
-              child: const Center(
-                child: Text(
-                  'Camera Preview',
-                  style: TextStyle(color: Colors.white54, fontSize: 18),
-                ),
-              ),
+              color: Colors.black,
+              child: _controller != null && _initializeControllerFuture != null
+                  ? FutureBuilder<void>(
+                      future: _initializeControllerFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done) {
+                          return CameraPreview(_controller!);
+                        } else {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                            ),
+                          );
+                        }
+                      },
+                    )
+                  : const Center(
+                      child: Text(
+                        'Initializing Camera',
+                        style: TextStyle(color: Colors.white54, fontSize: 18),
+                      ),
+                    ),
             ),
           ),
-          // Document Guide Overlay
+          // Document Guide Overlay (the white outline)
           Positioned.fill(child: CustomPaint(painter: DocumentGuidePainter())),
           // Top Bar
           Positioned(
@@ -81,18 +168,24 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     color: Colors.white24,
                     borderRadius: BorderRadius.circular(AppRadius.s),
                     border: Border.all(color: Colors.white, width: 2),
+                    image: _recentImage != null
+                        ? DecorationImage(
+                            image: FileImage(File(_recentImage!.path)),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
-                  child: const Icon(
-                    Icons.photo_library,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  child: _recentImage == null
+                      ? const Icon(
+                          Icons.photo_library,
+                          color: Colors.white,
+                          size: 24,
+                        )
+                      : null,
                 ),
                 // Capture Button
                 GestureDetector(
-                  onTap: () {
-                    // Trigger capture animation & logic
-                  },
+                  onTap: _takePicture,
                   child: Container(
                     width: 80,
                     height: 80,
@@ -127,14 +220,14 @@ class DocumentGuidePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
+      ..color = Colors.white.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
     final rect = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height / 2),
-      width: size.width * 0.8,
-      height: size.height * 0.6,
+      center: Offset(size.width / 2, size.height / 2 - 15),
+      width: size.width * 0.80,
+      height: size.height * 0.55,
     );
 
     // Draw corners
