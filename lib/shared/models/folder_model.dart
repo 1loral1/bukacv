@@ -4,7 +4,6 @@ class Folder {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<String> documentIds;
-  final int totalSize;
 
   Folder({
     required this.id,
@@ -12,7 +11,6 @@ class Folder {
     required this.createdAt,
     required this.updatedAt,
     this.documentIds = const [],
-    this.totalSize = 0,
   });
 
   Folder copyWith({
@@ -29,7 +27,6 @@ class Folder {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       documentIds: documentIds ?? this.documentIds,
-      totalSize: totalSize ?? this.totalSize,
     );
   }
 
@@ -39,8 +36,7 @@ class Folder {
       'title': title,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      'documentIds': documentIds,
-      'totalSize': totalSize,
+      'documentIds': documentIds
     };
   }
 
@@ -51,7 +47,6 @@ class Folder {
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
       documentIds: List<String>.from(map['documentIds'] ?? []),
-      totalSize: map['totalSize'] ?? 0,
     );
   }
 }
