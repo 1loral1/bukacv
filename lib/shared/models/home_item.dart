@@ -1,0 +1,3 @@
+class HomeItem {
+  const HomeItem();
+}
