@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../shared/models/mock_data.dart';
 import '../home/home_screen.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:gal/gal.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -48,6 +52,38 @@ class _ScannerScreenState extends State<ScannerScreen> {
     super.dispose();
   }
 
+  Future<File?> _uploadImage(String imagePath) async {
+    final baseUrl = '${dotenv.env['BACKEND_URI'] ?? 'http://10.0.2.2:5000/process'}/grayscale';
+    final uri = Uri.parse(baseUrl);
+
+    try {
+      var request = http.MultipartRequest('POST', uri);
+
+      // 'image' must match the key expected in your Flask backend
+      request.files.add(await http.MultipartFile.fromPath('image', imagePath));
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        debugPrint('Image processed successfully!');
+        // Save the received grayscale bytes as a new file
+        final directory = await getApplicationDocumentsDirectory();
+        final fileName = 'gray_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final savedImage = File('${directory.path}/$fileName');
+
+        await savedImage.writeAsBytes(response.bodyBytes);
+        return savedImage;
+      } else {
+        debugPrint('Failed to process. Status code: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error processing image: $e');
+      return null;
+    }
+  }
+
   Future<void> _takePicture() async {
     if (_controller == null || _initializeControllerFuture == null) return;
 
@@ -59,23 +95,30 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
       final image = await _controller!.takePicture();
 
-      // Save it to MockData
-      final newDoc = AppDocument(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: 'New Scan',
-        date: DateTime.now(),
-        imageUrl: image.path,
-      );
-      MockData.addDocument(newDoc);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Processing image...')));
+      }
+
+      final imageRes = await _uploadImage(image.path);
+      final finalImagePath = imageRes?.path ?? image.path;
+
+      // Save it to Device Gallery Instead of MockData
+      try {
+        await Gal.putImage(finalImagePath);
+      } catch (e) {
+        debugPrint('Failed to save to gallery: $e');
+      }
 
       if (mounted) {
         setState(() {
-          _recentImage = image;
+          _recentImage = XFile(finalImagePath);
         });
 
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Document saved')));
+        ).showSnackBar(const SnackBar(content: Text('Saved to Gallery')));
       }
     } catch (e) {
       debugPrint('Error taking picture: $e');
