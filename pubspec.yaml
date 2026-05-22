@@ -14,7 +14,7 @@ dependencies:
   path: ^1.9.1
 
   intl: any
-  isar: 4.0.0-dev.14
+  isar: ^4.0.0-dev.14
   isar_flutter_libs: 4.0.0-dev.14
   http: ^1.6.0
   gal: ^2.3.2

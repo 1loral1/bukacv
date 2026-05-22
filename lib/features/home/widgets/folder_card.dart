@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../shared/models/mock_data.dart';
+import '../../../shared/models/folder.dart';
 import '../../folder/folder_screen.dart';
 
 class FolderCard extends StatelessWidget {
-  final AppFolder folder;
+  final Folder folder;
 
   const FolderCard({super.key, required this.folder});
 
@@ -34,9 +34,14 @@ class FolderCard extends StatelessWidget {
                   padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    image: DecorationImage(
-                      image: NetworkImage(folder.documents.first.imageUrl),
-                      fit: BoxFit.cover,
+                    color: Colors
+                        .grey[200], // Fallback since no thumbnail in folder
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.folder,
+                      size: 50,
+                      color: Colors.grey[400],
                     ),
                   ),
                 ),
@@ -52,7 +57,7 @@ class FolderCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                '${folder.documentCount} items',
+                '${folder.documentIds.length} items',
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
             ],

@@ -1,3 +1,0 @@
-class HomeItem {
-  const HomeItem();
-}

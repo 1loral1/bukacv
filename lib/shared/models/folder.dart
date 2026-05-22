@@ -1,5 +1,11 @@
+import 'package:isar/isar.dart';
+
+part 'folder.g.dart';
+
+@collection
 class Folder {
-  final String id;
+  int id;
+
   final String title;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -14,7 +20,7 @@ class Folder {
   });
 
   Folder copyWith({
-    String? id,
+    int? id,
     String? title,
     DateTime? createdAt,
     DateTime? updatedAt,

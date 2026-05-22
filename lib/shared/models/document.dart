@@ -1,14 +1,21 @@
-import 'document_page_model.dart';
+import 'document_page.dart';
+import 'package:isar/isar.dart';
 
+part 'document.g.dart';
+
+@collection
 class Document {
-  final String id;
-  final String? folderId;
+  int id;
+
+  @Index()
+  final int? folderId;
+
   final String title;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<DocumentPage> pages;
   final String? thumbnailPath;
-  final int totalSize;
+  final int? totalSize;
 
   Document({
     required this.id,
@@ -22,8 +29,8 @@ class Document {
   });
 
   Document copyWith({
-    String? id,
-    String? folderId,
+    int? id,
+    int? folderId,
     String? title,
     DateTime? createdAt,
     DateTime? updatedAt,

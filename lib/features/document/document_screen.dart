@@ -1,44 +1,149 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
-import '../../shared/models/mock_data.dart';
+import '../../shared/models/document.dart';
 
-class DocumentScreen extends StatelessWidget {
-  final AppDocument document;
+class DocumentScreen extends StatefulWidget {
+  final Document document;
 
   const DocumentScreen({super.key, required this.document});
 
   @override
+  State<DocumentScreen> createState() => _DocumentScreenState();
+}
+
+class _DocumentScreenState extends State<DocumentScreen> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildPageImage(String? path) {
+    if (path == null) {
+      return const Icon(
+        Icons.insert_drive_file,
+        size: 100,
+        color: Colors.white,
+      );
+    }
+    if (path.startsWith('http')) {
+      return Image.network(path, fit: BoxFit.contain);
+    }
+    return Image.file(File(path), fit: BoxFit.contain);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final pages = widget.document.pages;
+    final totalPages = pages.isEmpty ? 1 : pages.length;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: Text(
-          document.title,
-          style: const TextStyle(color: Colors.white),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.document.title,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            if (totalPages > 1)
+              Text(
+                'Page ${_currentPage + 1} of $totalPages',
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+          ],
         ),
       ),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
-              child: Center(
-                child: Hero(
-                  tag: 'doc_${document.id}',
-                  child: InteractiveViewer(
-                    minScale: 0.5,
-                    maxScale: 4.0,
-                    child: document.imageUrl.startsWith('http')
-                        ? Image.network(document.imageUrl, fit: BoxFit.contain)
-                        : Image.file(
-                            File(document.imageUrl),
-                            fit: BoxFit.contain,
+              child: Stack(
+                children: [
+                  pages.isEmpty
+                      ? Center(
+                          child: Hero(
+                            tag: 'doc_${widget.document.id}',
+                            child: InteractiveViewer(
+                              minScale: 0.5,
+                              maxScale: 4.0,
+                              child: _buildPageImage(widget.document.thumbnailPath),
+                            ),
                           ),
-                  ),
-                ),
+                        )
+                      : PageView.builder(
+                          controller: _pageController,
+                          itemCount: totalPages,
+                          onPageChanged: (index) {
+                            // Safely delay state changes right outside structural frame callbacks
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                setState(() {
+                                  _currentPage = index;
+                                });
+                              }
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            final pageWidget = Center(
+                              child: InteractiveViewer(
+                                minScale: 0.5,
+                                maxScale: 4.0,
+                                child: _buildPageImage(pages[index].imagePath),
+                              ),
+                            );
+
+                            // Only attach Hero to the first index page so flight vectors match layout
+                            if (index == 0) {
+                              return Hero(
+                                tag: 'doc_${widget.document.id}',
+                                child: pageWidget,
+                              );
+                            }
+                            return pageWidget;
+                          },
+                        ),
+                  
+                  // Bottom Dot Indicators over image layout background
+                  if (totalPages > 1)
+                    Positioned(
+                      bottom: 20,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          totalPages,
+                          (index) => AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            width: _currentPage == index ? 10 : 6,
+                            height: _currentPage == index ? 10 : 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _currentPage == index
+                                  ? Colors.white
+                                  : Colors.white38,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             _buildBottomActionBar(),

@@ -1,5 +1,8 @@
-import '../../shared/models/document_model.dart';
-import '../../shared/models/folder_model.dart';
+import 'package:bukacv/shared/models/document_page.dart';
+
+import '../../shared/models/document.dart';
+import '../../shared/models/folder.dart';
+import '../services/isar_service.dart';
 
 abstract class StorageRepository {
   Future<void> init();
@@ -7,62 +10,80 @@ abstract class StorageRepository {
   // Folders
   Future<List<Folder>> getFolders();
   Future<void> saveFolder(Folder folder);
-  Future<void> deleteFolder(String id);
+  Future<void> deleteFolder(int id);
 
   // Documents
-  Future<List<Document>> getDocuments({String? folderId});
-  Future<void> saveDocument(Document document);
-  Future<void> deleteDocument(String id);
+  Future<List<Document>> getDocuments({int? folderId});
+  Future<void> saveDocument({
+    String? folderId,
+    required String title,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    List<DocumentPage> pages = const [],
+    String? thumbnailPath,
+    int totalSize = 0,
+  });
+  Future<void> deleteDocument(int id);
 }
 
-class MockStorageRepository implements StorageRepository {
-  final List<Folder> _folders = [];
-  final List<Document> _documents = [];
+class LocalStorageRepository implements StorageRepository {
+  final IsarService _isarService;
+
+  LocalStorageRepository(this._isarService);
 
   @override
   Future<void> init() async {
+    await _isarService.db;
   }
 
   @override
   Future<List<Folder>> getFolders() async {
-    return _folders;
+    return await _isarService.getAllFolders();
   }
 
   @override
   Future<void> saveFolder(Folder folder) async {
-    final index = _folders.indexWhere((f) => f.id == folder.id);
-    if (index >= 0) {
-      _folders[index] = folder;
-    } else {
-      _folders.add(folder);
-    }
+    await _isarService.saveFolder(folder);
   }
 
   @override
-  Future<void> deleteFolder(String id) async {
-    _folders.removeWhere((f) => f.id == id);
+  Future<void> deleteFolder(int id) async {
+    await _isarService.deleteFolder(id);
   }
 
   @override
-  Future<List<Document>> getDocuments({String? folderId}) async {
+  Future<List<Document>> getDocuments({int? folderId}) async {
     if (folderId != null) {
-      return _documents.where((d) => d.folderId == folderId).toList();
+      return await _isarService.getDocumentsByFolder(folderId);
     }
-    return _documents;
+    return await _isarService.getAllDocuments();
   }
 
   @override
-  Future<void> saveDocument(Document document) async {
-    final index = _documents.indexWhere((d) => d.id == document.id);
-    if (index >= 0) {
-      _documents[index] = document;
-    } else {
-      _documents.add(document);
-    }
+  Future<void> saveDocument({
+    String? folderId,
+    required String title,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    List<DocumentPage> pages = const [],
+    String? thumbnailPath,
+    int totalSize = 0,
+  }) async {
+    final docId = await _isarService.getDocumentId();
+    final document = Document(
+      id: docId,
+      title: title,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      pages: pages,
+      thumbnailPath: thumbnailPath,
+      totalSize: totalSize,
+    );
+    await _isarService.saveDocument(document);
   }
 
   @override
-  Future<void> deleteDocument(String id) async {
-    _documents.removeWhere((d) => d.id == id);
+  Future<void> deleteDocument(int id) async {
+    await _isarService.deleteDocument(id);
   }
 }

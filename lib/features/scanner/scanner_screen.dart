@@ -1,12 +1,11 @@
 import 'dart:io';
+import 'package:bukacv/features/scanner/preview_screen.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
-import '../../shared/models/mock_data.dart';
 import '../home/home_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:gal/gal.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ScannerScreen extends StatefulWidget {
@@ -21,6 +20,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
   Future<void>? _initializeControllerFuture;
   bool _isFlashOn = false;
   XFile? _recentImage;
+
+  final List<String> _capturedImagesRaw = [];
+  final List<String> _capturedImages = [];
 
   @override
   void initState() {
@@ -52,14 +54,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
     super.dispose();
   }
 
-  Future<File?> _uploadImage(String imagePath) async {
-    final baseUrl = '${dotenv.env['BACKEND_URI'] ?? 'http://10.0.2.2:5000/process'}/grayscale';
+  // SEND TO BACKEND SERVICE FOR IMAGE PROCESSING
+  Future<File?> _processImage(String imagePath) async {
+    final baseUrl =
+        '${dotenv.env['BACKEND_URI'] ?? 'http://10.0.2.2:5000/process'}/lighten';
     final uri = Uri.parse(baseUrl);
 
     try {
       var request = http.MultipartRequest('POST', uri);
 
-      // 'image' must match the key expected in your Flask backend
       request.files.add(await http.MultipartFile.fromPath('image', imagePath));
 
       var streamedResponse = await request.send();
@@ -69,10 +72,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
         debugPrint('Image processed successfully!');
         // Save the received grayscale bytes as a new file
         final directory = await getApplicationDocumentsDirectory();
-        final fileName = 'gray_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final fileName = 'bukacv_${DateTime.now().millisecondsSinceEpoch}.jpg';
         final savedImage = File('${directory.path}/$fileName');
 
         await savedImage.writeAsBytes(response.bodyBytes);
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Image Processed!')));
+        }
         return savedImage;
       } else {
         debugPrint('Failed to process. Status code: ${response.statusCode}');
@@ -84,6 +92,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
   }
 
+  // WHEN THE WHITE CIRCLE CAMERA BUTTON IS CLICKED
   Future<void> _takePicture() async {
     if (_controller == null || _initializeControllerFuture == null) return;
 
@@ -101,25 +110,20 @@ class _ScannerScreenState extends State<ScannerScreen> {
         ).showSnackBar(const SnackBar(content: Text('Processing image...')));
       }
 
-      final imageRes = await _uploadImage(image.path);
+      // save raw image path
+      setState(() {
+        _capturedImagesRaw.add(image.path);
+        _capturedImages.add(image.path);
+      });
+
+      // process image
+      final imageRes = await _processImage(image.path);
       final finalImagePath = imageRes?.path ?? image.path;
 
-      // Save it to Device Gallery Instead of MockData
-      try {
-        await Gal.putImage(finalImagePath);
-      } catch (e) {
-        debugPrint('Failed to save to gallery: $e');
-      }
-
-      if (mounted) {
-        setState(() {
-          _recentImage = XFile(finalImagePath);
-        });
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Saved to Gallery')));
-      }
+      // save to captured images list
+      setState(() {
+        _capturedImages[_capturedImages.indexOf(image.path)] = finalImagePath;
+      });
     } catch (e) {
       debugPrint('Error taking picture: $e');
     }
@@ -203,29 +207,47 @@ class _ScannerScreenState extends State<ScannerScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // preview of last captured images and navigation to preview all captured images
+                _capturedImages.isNotEmpty
+                    ? FloatingActionButton(
+                        backgroundColor: Colors
+                            .blueAccent, // Change to blue to indicate "Next"
+                        mini: true,
+                        onPressed: () {
+                          // Route to the new Preview Screen, passing both memory lists
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PreviewScreen(
+                                rawImages: _capturedImagesRaw,
+                                processedImages: _capturedImages,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(AppRadius.s),
+                            border: Border.all(color: Colors.white, width: 2),
+                            image: _recentImage != null
+                                ? DecorationImage(
+                                    image: FileImage(File(_recentImage!.path)),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.photo_library,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                 // Recent Thumbnail
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(AppRadius.s),
-                    border: Border.all(color: Colors.white, width: 2),
-                    image: _recentImage != null
-                        ? DecorationImage(
-                            image: FileImage(File(_recentImage!.path)),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: _recentImage == null
-                      ? const Icon(
-                          Icons.photo_library,
-                          color: Colors.white,
-                          size: 24,
-                        )
-                      : null,
-                ),
+
                 // Capture Button
                 GestureDetector(
                   onTap: _takePicture,
@@ -248,8 +270,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     ),
                   ),
                 ),
-                // Extra control placeholder
-                const SizedBox(width: 50),
+                SizedBox(width: 50)
               ],
             ),
           ),
