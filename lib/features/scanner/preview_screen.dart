@@ -26,12 +26,18 @@ class _PreviewScreenState extends State<PreviewScreen> {
   late PageController _pageController;
   late List<String> _localRawImages;
   late List<String> _localProcessedImages;
-  
+
   int _currentIndex = 0;
   bool _showFilters = false;
   bool _isLoading = false;
 
-  final List<String> _availableFilters = ['none', 'lighten', 'grayscale', 'warp', 'contours'];
+  final List<String> _availableFilters = [
+    'none',
+    'lighten',
+    'grayscale',
+    'warp',
+    'contours',
+  ];
 
   @override
   void initState() {
@@ -60,30 +66,36 @@ class _PreviewScreenState extends State<PreviewScreen> {
     setState(() => _isLoading = true);
 
     final sourceImagePath = _localRawImages[_currentIndex];
-    final baseUrl = '${dotenv.env['BACKEND_URI'] ?? 'http://10.0.2.2:5000/process'}/$filterName';
+    final baseUrl =
+        '${dotenv.env['BACKEND_URI'] ?? 'http://10.0.2.2:5000/process'}/$filterName';
     final uri = Uri.parse(baseUrl);
 
     try {
       var request = http.MultipartRequest('POST', uri);
-      request.files.add(await http.MultipartFile.fromPath('image', sourceImagePath));
+      request.files.add(
+        await http.MultipartFile.fromPath('image', sourceImagePath),
+      );
 
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
         final directory = await getApplicationDocumentsDirectory();
-        final fileName = '${filterName}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final fileName =
+            '${filterName}_${DateTime.now().millisecondsSinceEpoch}.jpg';
         final savedImage = File('${directory.path}/$fileName');
 
         await savedImage.writeAsBytes(response.bodyBytes);
-        
+
         setState(() {
           _localProcessedImages[_currentIndex] = savedImage.path;
         });
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to apply filter: ${response.statusCode}')),
+            SnackBar(
+              content: Text('Failed to apply filter: ${response.statusCode}'),
+            ),
           );
         }
       }
@@ -99,16 +111,20 @@ class _PreviewScreenState extends State<PreviewScreen> {
       _localRawImages.removeAt(_currentIndex);
       _localProcessedImages.removeAt(_currentIndex);
 
-      if (_localProcessedImages.isEmpty) {
-        // If they deleted the last page, pop back to the camera screen
-        Navigator.pop(context);
-      } else {
-        // Adjust index if we deleted the very last item in the remaining list
-        if (_currentIndex >= _localProcessedImages.length) {
-          _currentIndex = _localProcessedImages.length - 1;
-        }
+      if (_localProcessedImages.isEmpty) return;
+
+      if (_currentIndex >= _localProcessedImages.length) {
+        _currentIndex = _localProcessedImages.length - 1;
       }
     });
+
+    if (_localProcessedImages.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.pop(context, {'raw': <String>[], 'processed': <String>[]});
+        }
+      });
+    }
   }
 
   Future<void> _finalizeAndSaveDocument() async {
@@ -118,7 +134,9 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
     try {
       final now = DateTime.now();
-      final List<DocumentPage> documentPages = _localProcessedImages.map((path) {
+      final List<DocumentPage> documentPages = _localProcessedImages.map((
+        path,
+      ) {
         return DocumentPage(
           createdAt: now,
           imagePath: path,
@@ -133,7 +151,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
         updatedAt: now,
         thumbnailPath: _localProcessedImages.first,
         pages: documentPages,
-        totalSize: 0, 
+        totalSize: 0,
       );
 
       if (mounted) {
@@ -152,131 +170,163 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // 1. Full Screen Paged Image Viewer
-            if (_localProcessedImages.isNotEmpty)
-              PageView.builder(
-                controller: _pageController,
-                itemCount: _localProcessedImages.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentIndex = index;
-                    _showFilters = false; // Hide filters when swiping to a new page
-                  });
-                },
-                itemBuilder: (context, index) {
-                  return InteractiveViewer( // Allows users to pinch to zoom!
-                    child: Image.file(
-                      File(_localProcessedImages[index]),
-                      fit: BoxFit.contain,
+    return PopScope(
+      canPop: false, // Prevent automatic popping so we can attach custom data
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        // Pass the mutated local lists back to ScannerScreen
+        Navigator.pop(context, {
+          'raw': _localRawImages,
+          'processed': _localProcessedImages,
+        });
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // 1. Full Screen Paged Image Viewer
+              if (_localProcessedImages.isNotEmpty)
+                PageView.builder(
+                  controller: _pageController,
+                  itemCount: _localProcessedImages.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentIndex = index;
+                      _showFilters =
+                          false; // Hide filters when swiping to a new page
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    return InteractiveViewer(
+                      // Allows users to pinch to zoom!
+                      child: Image.file(
+                        File(_localProcessedImages[index]),
+                        fit: BoxFit.contain,
+                      ),
+                    );
+                  },
+                ),
+
+              // 2. Loading Overlay
+              if (_isLoading)
+                const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+
+              // 3. Top Bar (Back & Save)
+              Positioned(
+                top: 10,
+                left: 10,
+                right: 10,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      onPressed: () => Navigator.maybePop(context),
                     ),
-                  );
-                },
-              ),
-
-            // 2. Loading Overlay
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
-
-            // 3. Top Bar (Back & Save)
-            Positioned(
-              top: 10,
-              left: 10,
-              right: 10,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  Text(
-                    '${_currentIndex + 1} / ${_localProcessedImages.length}',
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  TextButton(
-                    onPressed: _isLoading ? null : _finalizeAndSaveDocument,
-                    child: const Text(
-                      'Save',
-                      style: TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 4. Bottom Controls (Filters Menu & Action Bar)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Filter Options Row (Toggles visibility)
-                  if (_showFilters)
-                    Container(
-                      color: Colors.black87,
-                      height: 60,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _availableFilters.length,
-                        itemBuilder: (context, index) {
-                          final filter = _availableFilters[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                            child: ActionChip(
-                              label: Text(filter.toUpperCase()),
-                              backgroundColor: Colors.grey[800],
-                              labelStyle: const TextStyle(color: Colors.white),
-                              onPressed: () => _applyFilter(filter),
-                            ),
-                          );
-                        },
+                    Text(
+                      '${_currentIndex + 1} / ${_localProcessedImages.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  
-                  // Main Action Bar
-                  Container(
-                    color: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _BottomNavButton(
-                          icon: Icons.filter_b_and_w,
-                          label: 'Filter',
-                          onTap: () => setState(() => _showFilters = !_showFilters),
-                          isActive: _showFilters,
+                    TextButton(
+                      onPressed: _isLoading ? null : _finalizeAndSaveDocument,
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(
+                          color: Colors.greenAccent,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
-                        _BottomNavButton(
-                          icon: Icons.crop,
-                          label: 'Crop',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Crop not available.')),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // 4. Bottom Controls (Filters Menu & Action Bar)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Filter Options Row (Toggles visibility)
+                    if (_showFilters)
+                      Container(
+                        color: Colors.black87,
+                        height: 60,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _availableFilters.length,
+                          itemBuilder: (context, index) {
+                            final filter = _availableFilters[index];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                              ),
+                              child: ActionChip(
+                                label: Text(filter.toUpperCase()),
+                                backgroundColor: Colors.grey[800],
+                                labelStyle: const TextStyle(
+                                  color: Colors.white,
+                                ),
+                                onPressed: () => _applyFilter(filter),
+                              ),
                             );
                           },
                         ),
-                        _BottomNavButton(
-                          icon: Icons.delete_outline,
-                          label: 'Remove',
-                          onTap: _removeCurrentPage,
-                          color: Colors.redAccent,
-                        ),
-                      ],
+                      ),
+
+                    // Main Action Bar
+                    Container(
+                      color: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _BottomNavButton(
+                            icon: Icons.filter_b_and_w,
+                            label: 'Filter',
+                            onTap: () =>
+                                setState(() => _showFilters = !_showFilters),
+                            isActive: _showFilters,
+                          ),
+                          _BottomNavButton(
+                            icon: Icons.crop,
+                            label: 'Crop',
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Crop not available.'),
+                                ),
+                              );
+                            },
+                          ),
+                          _BottomNavButton(
+                            icon: Icons.delete_outline,
+                            label: 'Remove',
+                            onTap: _removeCurrentPage,
+                            color: Colors.redAccent,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -308,7 +358,13 @@ class _BottomNavButton extends StatelessWidget {
         children: [
           Icon(icon, color: isActive ? Colors.greenAccent : color, size: 28),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: isActive ? Colors.greenAccent : color, fontSize: 12)),
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive ? Colors.greenAccent : color,
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );

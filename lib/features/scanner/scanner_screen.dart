@@ -114,6 +114,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       setState(() {
         _capturedImagesRaw.add(image.path);
         _capturedImages.add(image.path);
+        _recentImage = image;
       });
 
       // process image
@@ -123,6 +124,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       // save to captured images list
       setState(() {
         _capturedImages[_capturedImages.indexOf(image.path)] = finalImagePath;
+        _recentImage = XFile(finalImagePath);
       });
     } catch (e) {
       debugPrint('Error taking picture: $e');
@@ -210,20 +212,38 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 // preview of last captured images and navigation to preview all captured images
                 _capturedImages.isNotEmpty
                     ? FloatingActionButton(
-                        backgroundColor: Colors
-                            .blueAccent, // Change to blue to indicate "Next"
                         mini: true,
-                        onPressed: () {
-                          // Route to the new Preview Screen, passing both memory lists
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PreviewScreen(
-                                rawImages: _capturedImagesRaw,
-                                processedImages: _capturedImages,
-                              ),
-                            ),
-                          );
+                        onPressed: () async {
+                          final Map<String, List<String>>? updatedImages =
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PreviewScreen(
+                                    rawImages: _capturedImagesRaw,
+                                    processedImages: _capturedImages,
+                                  ),
+                                ),
+                              );
+
+                          // If we got data back, update ScannerScreen's master lists and thumbnail preview
+                          if (updatedImages != null && mounted) {
+                            setState(() {
+                              _capturedImagesRaw.clear();
+                              _capturedImagesRaw.addAll(updatedImages['raw']!);
+
+                              _capturedImages.clear();
+                              _capturedImages.addAll(
+                                updatedImages['processed']!,
+                              );
+
+                              // Update the thumbnail preview box to point to the last item left
+                              if (_capturedImages.isNotEmpty) {
+                                _recentImage = XFile(_capturedImages.last);
+                              } else {
+                                _recentImage = null;
+                              }
+                            });
+                          }
                         },
                         child: Container(
                           width: 50,
@@ -270,7 +290,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 50)
+                SizedBox(width: 50),
               ],
             ),
           ),

@@ -18,12 +18,15 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Folder> folders = [];
   List<Document> documents = [];
   bool isLoading = true;
+  bool isAscending = false;
 
   @override
   void initState() {
     super.initState();
     _loadData();
   }
+
+  
 
   Future<void> _loadData() async {
     final fetchedFolders = await storageRepository.getFolders();
@@ -33,8 +36,23 @@ class _HomeScreenState extends State<HomeScreen> {
         .where((d) => d.folderId == null)
         .toList();
 
-    debugPrint(looseDocuments.toString());
-    
+    // Sort folders
+    fetchedFolders.sort((a, b) {
+      if (isAscending) {
+        return a.createdAt.compareTo(b.createdAt);
+      } else {
+        return b.createdAt.compareTo(a.createdAt);
+      }
+    });
+
+    // Sort documents
+    looseDocuments.sort((a, b) {
+      if (isAscending) {
+        return a.createdAt.compareTo(b.createdAt);
+      } else {
+        return b.createdAt.compareTo(a.createdAt);
+      }
+    });
 
     if (mounted) {
       setState(() {
@@ -43,6 +61,38 @@ class _HomeScreenState extends State<HomeScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _showAddFolderDialog() async {
+    final textController = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('New Folder'),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Folder name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final title = textController.text.trim();
+              if (title.isNotEmpty) {
+                await storageRepository.createFolder(title);
+                if (context.mounted) Navigator.pop(context);
+              }
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    _loadData();
   }
 
   @override
@@ -56,6 +106,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   expandedHeight: 100.0,
                   floating: false,
                   pinned: true,
+                  actions: [
+                    IconButton(
+                      icon: Icon(
+                        isAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                      ),
+                      tooltip: 'Sort by Date',
+                      onPressed: () {
+                        setState(() {
+                          isAscending = !isAscending;
+                          _loadData(); // Re-sort and load
+                        });
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.create_new_folder),
+                      tooltip: 'Add Folder',
+                      onPressed: _showAddFolderDialog,
+                    ),
+                  ],
                   flexibleSpace: FlexibleSpaceBar(
                     background: Container(
                       padding: const EdgeInsets.only(
@@ -86,10 +155,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.all(AppSpacing.m),
-                  sliver: SliverToBoxAdapter(child: _buildSearchBar()),
-                ),
+                // SliverPadding(
+                //   padding: const EdgeInsets.all(AppSpacing.m),
+                //   sliver: SliverToBoxAdapter(child: _buildSearchBar()),
+                // ),
                 if (folders.isNotEmpty) ...[
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(
@@ -152,8 +221,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             childAspectRatio: 0.70,
                           ),
                       delegate: SliverChildBuilderDelegate(
-                        (context, index) =>
-                            DocumentCard(key: ValueKey('doc_card_${documents[index].id}'),document: documents[index]),
+                        (context, index) => DocumentCard(
+                          key: ValueKey('doc_card_${documents[index].id}'),
+                          document: documents[index],
+                        ),
                         childCount: documents.length,
                       ),
                     ),
@@ -162,13 +233,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
               ],
             ),
+      // SCAN FLOATING BUTTON
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           await Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const ScannerScreen()),
           );
-          _loadData(); // Refresh when returning
+          _loadData();
         },
         icon: const Icon(Icons.document_scanner),
         label: const Text('Scan'),
@@ -176,6 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // gausah lah
   Widget _buildSearchBar() {
     return Container(
       decoration: BoxDecoration(

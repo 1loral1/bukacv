@@ -28,7 +28,7 @@ class IsarService {
 
   Future<int> getFolderId() async {
     final isar = await db;
-    return isar.documents.autoIncrement();
+    return isar.folders.autoIncrement();
   }
 
   // ==========================================

@@ -1,6 +1,6 @@
 name: bukacv
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0
 
 environment:
@@ -12,6 +12,8 @@ dependencies:
   camera: ^0.11.2+1
   path_provider: ^2.1.5
   path: ^1.9.1
+  lecle_downloads_path_provider: ^0.0.2+8
+  permission_handler: ^12.0.1
 
   intl: any
   isar: ^4.0.0-dev.14
@@ -19,6 +21,9 @@ dependencies:
   http: ^1.6.0
   gal: ^2.3.2
   flutter_dotenv: ^6.0.1
+  flutter_downloader: ^1.12.0
+  file_picker: ^11.0.2
+  flutter_file_dialog: ^3.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -10,6 +10,7 @@ abstract class StorageRepository {
   // Folders
   Future<List<Folder>> getFolders();
   Future<void> saveFolder(Folder folder);
+  Future<void> createFolder(String title);
   Future<void> deleteFolder(int id);
 
   // Documents
@@ -43,6 +44,18 @@ class LocalStorageRepository implements StorageRepository {
 
   @override
   Future<void> saveFolder(Folder folder) async {
+    await _isarService.saveFolder(folder);
+  }
+
+  @override
+  Future<void> createFolder(String title) async {
+    final folderId = await _isarService.getFolderId();
+    final folder = Folder(
+      id: folderId,
+      title: title,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
     await _isarService.saveFolder(folder);
   }
 
